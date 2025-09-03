@@ -37,15 +37,20 @@ const API_KEY_NODE_TO_FLASK = "012345";
 // O atendente.js fará um POST para esta rota
 app.post('/api/chamar/:ticket_id', async (req, res) => {
     const ticketId = req.params.ticket_id;
+    const data = req.body;
     try {
         // 1. Faz a requisição para o backend Flask
-        await axios.post(`${FLASK_API_URL}/chamar/${ticketId}`);
+        const response = await axios.post(`${FLASK_API_URL}/chamar/${ticketId}`, data, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         
         // 2. Emite o evento 'fila_atualizada' para todos os clientes conectados
         io.emit('fila_atualizada');
     
         // 3. Retorna uma resposta de sucesso para o frontend
-        res.status(200).json({ success: true, message: 'Cliente chamado com sucesso' });
+        res.status(200).json(response.data);
     } catch (error) {
         console.error(`Erro ao chamar cliente ${ticketId}:`, error.message);
         res.status(500).json({ success: false, message: 'Falha ao chamar cliente' });
