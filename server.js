@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 // Importa as bibliotecas necessárias
 const express = require('express');
 const http = require('http');
@@ -29,8 +31,8 @@ app.use(express.json());
 
 // A URL do seu backend Flask
 // No cPanel, você pode usar 'http://localhost:5000' se eles estiverem no mesmo servidor
-const FLASK_API_URL = 'http://127.0.0.1:5000/api/v1/fila';
-const API_KEY_NODE_TO_FLASK = "012345";
+const FLASK_API_URL = process.env.FLASK_API_URL;
+const API_KEY_NODE_TO_FLASK = process.env.API_KEY_NODE_TO_FLASK;
 
 
 // Rota para 'chamar' um cliente
