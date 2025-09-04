@@ -11,7 +11,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Diretórios de build
-dist/
+.dist/
 build/
 
 # Cache
