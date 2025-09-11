@@ -42,7 +42,7 @@ app.post('/api/chamar/:ticket_id', async (req, res) => {
     const data = req.body;
     try {
         // 1. Faz a requisição para o backend Flask
-        const response = await axios.post(`${FLASK_API_URL}/chamar/${ticketId}`, data, {
+        const response = await axios.post(`${FLASK_API_URL}chamar/${ticketId}`, data, {
             headers: {
                 'Content-Type': 'application/json'
             }
@@ -88,7 +88,7 @@ app.post('/api/remover/:ticket_id', async (req, res) => {
 app.post('/api/nova_senha', async (req, res) => {
     const {category} = req.body;
     try{
-        const response = await axios.post(`${FLASK_API_URL}/nova_senha`, {category}, {
+        const response = await axios.post(`${FLASK_API_URL}nova_senha`, {category}, {
             headers: {
                 'X-API-Key': API_KEY_NODE_TO_FLASK
             }
@@ -100,6 +100,23 @@ app.post('/api/nova_senha', async (req, res) => {
     } catch(error){
         console.error(`Erro ao criar uma nova senha: `, error.message);
         res.status(500).json({success: false, message: 'Falha ao criar uma nova senha'});
+    }
+});
+
+// Retorno da fila de atendimento para o painel
+app.post('/api/painel', async (req, res) => {
+    try{
+        // Necessario passar o data do axios vazio
+        const response = await axios.post(`${FLASK_API_URL}painel`, {}, {
+            headers: {
+                'X-API-Key': '012345'
+            }
+        });
+
+        res.status(200).json(response.data);
+    }catch (error){
+        console.error(`Erro ao criar a chamada para retorno da fila de atendimento para o painel : `, error.message);
+        res.status(200).json({success: false, message: 'Falha ao criar a chamada para retorno da fila de atendimento para o painel'})
     }
 });
 
