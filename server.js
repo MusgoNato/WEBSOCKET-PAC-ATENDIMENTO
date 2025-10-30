@@ -6,6 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios'); // Necessário para fazer requisições para o Flask
 const cors = require('cors'); // Importe a biblioteca CORS
+const { stat } = require("fs");
 
 // Cria o aplicativo Express e o servidor HTTP
 const app = express();
@@ -25,6 +26,10 @@ const io = new Server(server, {
 
 // Define a porta em que o servidor irá rodar
 const port = process.env.PORT || 4000;
+
+
+// Impressoras conectadas ao meu servidor
+let impressorasConectadas = {};
 
 // Middleware para processar requisições com corpo em formato JSON
 app.use(express.json());
@@ -87,19 +92,35 @@ app.post('/api/remover/:ticket_id', async (req, res) => {
 // Criacao de uma nova senha via totem
 app.post('/api/nova_senha', async (req, res) => {
     const {category} = req.body;
+
+    // Se não existem impressoras conectadas, não há impressao
+    if(Object.keys(impressorasConectadas).length == 0){
+        console.warn(`Tentativa de criar senha. ABORTADA: Impressora Offline.`);
+        return res.status(503).json({
+            success: false,
+            message: 'O serviço de impressão (Worker) está indisponível.'
+        });
+    }
+
     try{
         const response = await axios.post(`${FLASK_API_URL}nova_senha`, {category}, {
             headers: {
                 'X-API-Key': API_KEY_NODE_TO_FLASK
             }
         });
-        io.emit('fila_atualizada');
+        const creationData = response.data;
+        
+        // Caso exista impressora conectada, inicio a impressao
+        io.emit('iniciar_impressao', creationData);
+        console.log(`Senha criada e ZPL enviado para impressao`);
 
-        res.status(200).json(response.data);
+        // Atualizo os paineis após a criação da senha
+        io.emit('fila_atualizada');
+        res.status(200).json(creationData);
 
     } catch(error){
-        console.error(`Erro ao criar uma nova senha: `, error.message);
-        res.status(500).json({success: false, message: 'Falha ao criar uma nova senha'});
+        console.error(`Erro CRITICO Falha na transacao do Flask (Criacao/Geracao ZPL): `, error.message);
+        res.status(500).json({success: false, message: 'Falha ao criar uma nova senha (Erro de sistema).'});
     }
 });
 
@@ -123,9 +144,26 @@ app.post('/api/painel', async (req, res) => {
 // Eventos de conexão do WebSocket
 io.on('connection', (socket) => {
     console.log(`Novo cliente conectado: ${socket.id}`);
-    socket.on('disconnect', () => {
-    console.log(`Cliente desconectado: ${socket.id}`);
+
+    // Identifica o raspberry conectado
+    socket.on('identificar_cliente', (data) => {
+        console.log(`Tentativa de identificação recebida : `, data);
+        if(data.tipo == 'impressora'){
+            impressorasConectadas[socket.id] = data;
+            console.log(`Impressora conectada : ${data.nome} (${socket.id})`);
+        }
     });
+    
+    // Clientes desconectados
+    socket.on('disconnect', () => {
+        if(impressorasConectadas[socket.id]){
+            console.log(`Impressora desconectada: ${impressorasConectadas[socket.id]}`);
+            delete impressorasConectadas[socket.id];
+            console.log(`Impressoras ativas : ${Object.keys(impressorasConectadas)}`);
+        }
+        console.log(`Cliente desconectado: ${socket.id}`);
+    });
+    
 });
 
 // Inicia o servidor
