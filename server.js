@@ -6,7 +6,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios'); // Necessário para fazer requisições para o Flask
 const cors = require('cors'); // Importe a biblioteca CORS
-const { stat } = require("fs");
 
 // Cria o aplicativo Express e o servidor HTTP
 const app = express();
@@ -77,7 +76,6 @@ app.post('/api/remover/:ticket_id', async (req, res) => {
             }
         });
 
-        console.log(ticketId);
         // 2. Emite o evento 'fila_atualizada' para todos os clientes conectados
         io.emit('fila_atualizada');
     
@@ -108,18 +106,39 @@ app.post('/api/nova_senha', async (req, res) => {
                 'X-API-Key': API_KEY_NODE_TO_FLASK
             }
         });
+
+        // Creation data contem as informacoes da senha (numero, tipo, codigo ZPL para envio da impressora, etc)
         const creationData = response.data;
         
         // Caso exista impressora conectada, inicio a impressao
         io.emit('iniciar_impressao', creationData);
         console.log(`Senha criada e ZPL enviado para impressao`);
 
-        // Atualizo os paineis após a criação da senha
-        io.emit('fila_atualizada');
-        res.status(200).json(creationData);
+        try{
+            // Faz uma nova requisicao para o Flask gravar essa senha gerada no banco apos a impressao da mesma
+            const response_criacao_senha_banco = await axios.post(`${FLASK_API_URL}wr_senha_bd`, creationData, {
+                headers: {
+                    'X-API-Key': API_KEY_NODE_TO_FLASK
+                }
+            });  
+
+            // Numero do ticket em especifico, retornado do banco ao gravar o mesmo
+            const numero_ticket = response_criacao_senha_banco.data.ticket_number;
+            
+            // Atualizo a fila, no caso o painel
+            io.emit('fila_atualizada');
+            
+            // Tudo deu certo, retorna status true, senha foi gerada e fila atualizada. Assim sendo devolve a senha para que o front end à sirva
+            res.status(200).json({success: true, ticket_number: numero_ticket});
+        
+        } catch(error){
+            console.error(`Nao foi possivel gravar no banco a senha criada!`);
+            res.status(500).json({success: false, message: 'Falha ao gravar a senha no banco de dados!'});
+        }
+
 
     } catch(error){
-        console.error(`Erro CRITICO Falha na transacao do Flask (Criacao/Geracao ZPL): `, error.message);
+        console.error(`Erro CRITICO Falha na transacao do Flask (Criacao/Geracao ZPL): `, error);
         res.status(500).json({success: false, message: 'Falha ao criar uma nova senha (Erro de sistema).'});
     }
 });
@@ -151,6 +170,15 @@ io.on('connection', (socket) => {
         if(data.tipo == 'impressora'){
             impressorasConectadas[socket.id] = data;
             console.log(`Impressora conectada : ${data.nome} (${socket.id})`);
+        }
+    });
+
+    // Capta a emissao do evento quando a impressora estiver ativa
+    socket.on('impressao_concluida', (data) =>{
+        if (data.status !== 'false'){
+            console.log("Impressora ativa e impressao concluida com sucesso!");
+        }else{
+            console.log("Impressora offline");
         }
     });
     
