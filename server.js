@@ -114,31 +114,13 @@ app.post('/api/nova_senha', async (req, res) => {
         io.emit('iniciar_impressao', creationData);
         console.log(`Senha criada e ZPL enviado para impressao`);
 
-        try{
-            // Faz uma nova requisicao para o Flask gravar essa senha gerada no banco apos a impressao da mesma
-            const response_criacao_senha_banco = await axios.post(`${FLASK_API_URL}wr_senha_bd`, creationData, {
-                headers: {
-                    'X-API-Key': API_KEY_NODE_TO_FLASK
-                }
-            });  
+        io.emit('fila_atualizada');
+        console.log(`Fila atualizada com sucesso!`);
 
-            // Numero do ticket em especifico, retornado do banco ao gravar o mesmo
-            const numero_ticket = response_criacao_senha_banco.data.ticket_number;
-            
-            // Atualizo a fila, no caso o painel
-            io.emit('fila_atualizada');
-            
-            // Tudo deu certo, retorna status true, senha foi gerada e fila atualizada. Assim sendo devolve a senha para que o front end à sirva
-            res.status(200).json({success: true, ticket_number: numero_ticket});
-        
-        } catch(error){
-            console.error(`Nao foi possivel gravar no banco a senha criada!`);
-            res.status(500).json({success: false, message: 'Falha ao gravar a senha no banco de dados!'});
-        }
-
+        res.status(200).json(creationData);
 
     } catch(error){
-        console.error(`Erro CRITICO Falha na transacao do Flask (Criacao/Geracao ZPL): `, error);
+        console.error(`Erro na criação da senha pelo sistema interno (Criacao/Geracao ZPL)!`, error);
         res.status(500).json({success: false, message: 'Falha ao criar uma nova senha (Erro de sistema).'});
     }
 });
@@ -149,7 +131,7 @@ app.post('/api/painel', async (req, res) => {
         // Necessario passar o data do axios vazio
         const response = await axios.post(`${FLASK_API_URL}painel`, {}, {
             headers: {
-                'X-API-Key': '012345'
+                'X-API-Key': API_KEY_NODE_TO_FLASK
             }
         });
 
